@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <!-- 문자 인코딩 설정 (한글 깨짐 방지) -->
+  <meta charset="UTF-8">
+  <!-- 모바일 및 다양한 기기를 위한 반응형 뷰포트 설정 -->
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <!-- 웹 애플리케이션 제목 -->
+  <title>공기 신호등 - 실시간 미세먼지 & 날씨 지도</title>
+
+  <!-- PWA: 웹 앱 매니페스트(manifest.json) 연결 -->
+  <link rel="manifest" href="/manifest.json">
+  <!-- 안드로이드 Chrome 및 모바일 상단 바 테마 색상 -->
+  <meta name="theme-color" content="#3b82f6">
+  <!-- 모바일 웹앱 전체화면 지원 -->
+  <meta name="mobile-web-app-capable" content="yes">
+  <!-- iOS Safari 지원 메타 태그 -->
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="공기신호등">
+  <link rel="apple-touch-icon" href="/icons/icon-192.png">
+
+  <!-- Pretendard 웹폰트 불러오기 -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.css">
+  <!-- Chart.js 라이브러리 CDN 불러오기 -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <!-- Leaflet 지도 라이브러리 CSS 및 JS 불러오기 -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <!-- 외부 스타일시트(style.css) 연결 -->
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <!-- 전체 화면을 감싸는 반응형 메인 컨테이너 -->
+  <div class="container">
+    
+    <!-- 상단 헤더: 타이틀 및 시·도 드롭다운 -->
+    <header class="header">
+      <div class="header-title-box">
+        <span class="app-icon">🚦</span>
+        <h1>공기 신호등</h1>
+      </div>
+      <!-- 지역 선택을 위한 드롭다운 -->
+      <div class="selector-box">
+        <label for="sidoSelect">지역 선택</label>
+        <select id="sidoSelect">
+          <option value="전국">전국</option>
+          <option value="서울" selected>서울</option>
+          <option value="부산">부산</option>
+          <option value="대구">대구</option>
+          <option value="인천">인천</option>
+          <option value="광주">광주</option>
+          <option value="대전">대전</option>
+          <option value="울산">울산</option>
+          <option value="세종">세종</option>
+          <option value="경기">경기</option>
+          <option value="강원">강원</option>
+          <option value="충북">충북</option>
+          <option value="충남">충남</option>
+          <option value="전북">전북</option>
+          <option value="전남">전남</option>
+          <option value="경북">경북</option>
+          <option value="경남">경남</option>
+          <option value="제주">제주</option>
+        </select>
+      </div>
+    </header>
+
+    <!-- 맨 위: 그 지역 대표 상태를 보여주는 '대형 공기 신호등' 섹션 -->
+    <section class="traffic-section" id="trafficSection">
+      <!-- 상단 메타 바: 지역 이름과 실시간 날씨 정보 요약 -->
+      <div class="traffic-top-bar">
+        <span class="traffic-region" id="trafficRegion">서울</span>
+        <!-- 실시간 날씨 위젯 배지 -->
+        <div class="weather-pill" id="weatherPill">
+          <span class="weather-icon" id="weatherIcon">🌤️</span>
+          <span class="weather-desc" id="weatherDesc">날씨 확인 중...</span>
+          <span class="weather-temp" id="weatherTemp">--°C</span>
+        </div>
+      </div>
+      
+      <!-- 신호등 이모지와 상태 텍스트 (아주 크게 표시) -->
+      <div class="traffic-hero">
+        <span class="traffic-emoji" id="trafficEmoji">⏳</span>
+        <span class="traffic-status" id="trafficStatus">불러오는 중...</span>
+      </div>
+
+      <!-- 평균 미세먼지 수치 -->
+      <div class="traffic-value-box">
+        <span class="traffic-value-label">평균 미세먼지</span>
+        <span class="traffic-value" id="trafficValue">-</span>
+      </div>
+
+      <!-- 한 줄 안내 문구 (나쁨 이상이면 '외출 시 마스크를 챙기세요') -->
+      <div class="traffic-guide-box" id="trafficGuideBox">
+        <p class="traffic-guide" id="trafficGuide">데이터를 불러오는 중입니다...</p>
+      </div>
+
+      <!-- 실시간 날씨 세부 카드 (습도, 체감온도, 풍속 등) -->
+      <div class="weather-details-card" id="weatherDetailsCard">
+        <div class="weather-detail-item">
+          <span class="weather-detail-label">체감 온도</span>
+          <span class="weather-detail-val" id="weatherApparentTemp">--°C</span>
+        </div>
+        <div class="weather-detail-item">
+          <span class="weather-detail-label">습도</span>
+          <span class="weather-detail-val" id="weatherHumidity">--%</span>
+        </div>
+        <div class="weather-detail-item">
+          <span class="weather-detail-label">바람</span>
+          <span class="weather-detail-val" id="weatherWind">-- m/s</span>
+        </div>
+      </div>
+
+      <!-- 기준 측정 시각 (한국어 형식) -->
+      <p class="traffic-time" id="trafficTime">-</p>
+    </section>
+
+    <!-- 로딩 스피너 및 상태 안내 메시지 -->
+    <div id="statusMessage" class="status-message">
+      <div class="spinner"></div>
+      <p id="statusText">데이터를 불러오는 중...</p>
+    </div>
+
+    <!-- 지역별 세부 실시간 날씨 섹션 (Open-Meteo) -->
+    <section class="region-weather-section" id="regionWeatherSection">
+      <div class="section-header">
+        <div>
+          <h2>지역별 실시간 날씨</h2>
+          <p class="section-desc" id="regionWeatherDesc">세부 지역별 기온과 날씨를 10분마다 자동으로 갱신합니다</p>
+        </div>
+        <div class="region-weather-controls">
+          <select id="regionWeatherSort" aria-label="정렬 기준">
+            <option value="default">기본 순</option>
+            <option value="tempDesc">기온 높은 순</option>
+            <option value="tempAsc">기온 낮은 순</option>
+          </select>
+          <button type="button" class="refresh-btn" id="regionWeatherRefresh" title="지금 새로고침">🔄</button>
+        </div>
+      </div>
+
+      <!-- 요약: 평균 기온 / 가장 따뜻한 곳 / 가장 추운 곳 -->
+      <div class="region-weather-summary" id="regionWeatherSummary"></div>
+
+      <!-- 지역별 날씨 카드 그리드 -->
+      <div class="region-weather-grid" id="regionWeatherGrid">
+        <p class="region-weather-empty">날씨 정보를 불러오는 중...</p>
+      </div>
+
+      <p class="region-weather-updated" id="regionWeatherUpdated"></p>
+    </section>
+
+    <!-- 시간대별 기온 그래프 섹션 (향후 24시간) -->
+    <section class="hourly-section" id="hourlySection">
+      <div class="section-header">
+        <div>
+          <h2>시간대별 기온 (24시간)</h2>
+          <p class="section-desc">기온·체감 온도와 강수확률 예보 · 위 날씨 카드를 눌러도 지역이 바뀌어요</p>
+        </div>
+        <select id="hourlyRegionSelect" class="hourly-region-select" aria-label="그래프 지역 선택"></select>
+      </div>
+      <div class="hourly-chart-container">
+        <canvas id="hourlyChart"></canvas>
+        <p class="hourly-status" id="hourlyStatus">불러오는 중...</p>
+      </div>
+    </section>
+
+    <!-- 주간 날씨 예보 섹션 (7일) - 시간대별 그래프와 같은 지역 기준 -->
+    <section class="weekly-section" id="weeklySection">
+      <div class="section-header">
+        <div>
+          <h2>주간 날씨 예보 (7일)</h2>
+          <p class="section-desc" id="weeklyDesc">위 시간대별 그래프에서 고른 지역 기준</p>
+        </div>
+      </div>
+      <!-- 오늘의 일출·일몰 카드 (해 위치 궤적 포함) -->
+      <div class="sun-card" id="sunCard"></div>
+      <div class="weekly-list" id="weeklyList">
+        <p class="region-weather-empty">주간 예보를 불러오는 중...</p>
+      </div>
+    </section>
+
+    <!-- 실시간 대기오염 지도 섹션 (Leaflet) -->
+    <section class="map-section" id="mapSection">
+      <div class="section-header">
+        <div>
+          <h2>실시간 대기질 · 날씨 지도</h2>
+          <p class="section-desc">측정소별 미세먼지 등급과 지역별 날씨·기온을 지도에서 확인하세요</p>
+        </div>
+        <!-- 지도 레이어 켜기/끄기 버튼 -->
+        <div class="map-layer-toggle">
+          <button type="button" class="layer-btn active" id="toggleDustLayer" aria-pressed="true">🌫️ 미세먼지</button>
+          <button type="button" class="layer-btn active" id="toggleWeatherLayer" aria-pressed="true">🌡️ 날씨</button>
+        </div>
+        <!-- 지도 범례 -->
+        <div class="map-legend">
+          <span class="legend-item"><span class="legend-dot dot-good"></span>좋음</span>
+          <span class="legend-item"><span class="legend-dot dot-normal"></span>보통</span>
+          <span class="legend-item"><span class="legend-dot dot-bad"></span>나쁨</span>
+          <span class="legend-item"><span class="legend-dot dot-verybad"></span>매우나쁨</span>
+        </div>
+      </div>
+      <!-- Leaflet 지도가 렌더링될 영역 -->
+      <div class="map-wrapper">
+        <div id="map" class="map-container"></div>
+      </div>
+    </section>
+
+    <!-- 미세먼지 상위 10개 가로 막대그래프 섹션 -->
+    <section class="chart-section" id="chartSection">
+      <div class="section-header">
+        <div>
+          <h2>미세먼지 수치 TOP 10 (높은 순)</h2>
+          <p class="section-desc">측정 안 됨을 제외한 상위 10개 측정소 현황</p>
+        </div>
+      </div>
+      <!-- 차트 캔버스 컨테이너 -->
+      <div class="chart-container">
+        <canvas id="dustChart"></canvas>
+      </div>
+    </section>
+
+    <!-- 측정소별 카드 목록 섹션 -->
+    <section class="stations-section">
+      <div class="section-header">
+        <div>
+          <h2>측정소별 전체 실시간 현황</h2>
+          <p class="section-desc">지역 내 모든 측정소의 세부 측정값</p>
+        </div>
+        <span class="station-count" id="stationCount"></span>
+      </div>
+      <!-- 측정소 카드가 동적으로 추가되는 그리드 -->
+      <div class="card-grid" id="cardGrid"></div>
+    </section>
+
+  </div>
+
+  <!-- 자바스크립트 로직 연결 -->
+  <script src="script.js"></script>
+  
+  <!-- PWA 서비스 워커(sw.js) 등록 스크립트 -->
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('/sw.js')
+          .then((registration) => {
+            console.log('[PWA] 서비스 워커 등록 완료, Scope:', registration.scope);
+          })
+          .catch((error) => {
+            console.error('[PWA] 서비스 워커 등록 실패:', error);
+          });
+      });
+    }
+  </script>
+</body>
+</html>
